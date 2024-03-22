@@ -15,6 +15,11 @@ const CIRCLE = {
 };
 
 let showLabels = true;
+let showIntersections = true;
+
+const canvas = document.getElementById("myCanvas");
+canvas.width = CANVAS_WIDTH;
+canvas.height = CANVAS_HEIGHT;
 
 draw();
 
@@ -81,18 +86,20 @@ inputHeight.oninput = (e) => {
   draw();
 };
 
-const toggleLabels = document.getElementById("toggle-labels");
-toggleLabels.onclick = (e) => {
+const toggleLabels = (document.getElementById("toggle-labels").onclick = (
+  e,
+) => {
   showLabels = !showLabels;
+  draw();
+});
+
+document.getElementById("toggle-intersections").onclick = (e) => {
+  showIntersections = !showIntersections;
   draw();
 };
 
 function draw() {
-  const canvas = document.getElementById("myCanvas");
-
   const ctx = canvas.getContext("2d");
-  canvas.width = CANVAS_WIDTH;
-  canvas.height = CANVAS_HEIGHT;
 
   ctx.fillStyle = "#202020";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -124,6 +131,11 @@ function draw() {
   ctx.lineTo(CIRCLE.x - CIRCLE.radius, CIRCLE.y);
   ctx.stroke();
 
+  drawLabels(ctx);
+  drawIntersections(ctx);
+}
+
+function drawLabels(ctx) {
   if (showLabels) {
     // Text
     ctx.fillStyle = "white";
@@ -137,4 +149,209 @@ function draw() {
     ctx.fillText(`${RECT.height}`, RECT.x - 5, RECT.y + RECT.height / 2);
     ctx.fillText(`${RECT.width}`, RECT.x + RECT.width / 2 - 5, RECT.y + 3);
   }
+}
+
+function drawIntersections(ctx) {
+  if (showIntersections) {
+    drawLeftIntersections(ctx);
+    drawRightIntersections(ctx);
+    drawTopIntersections(ctx);
+    drawBottomIntersections(ctx);
+  }
+}
+
+function drawLeftIntersections(ctx) {
+  const c = distSqrd(RECT, CIRCLE) - CIRCLE.radius ** 2;
+  const b = 2 * (RECT.y - CIRCLE.y);
+  const det = b ** 2 - 4 * c;
+  if (det >= 0) {
+    const y0 = (1 / 2) * (-b + Math.sqrt(det));
+    const y1 = (1 / 2) * (-b - Math.sqrt(det));
+
+    ctx.strokeStyle = "red";
+    if (
+      (RECT.height >= 0 && 0 <= y0 && y0 <= RECT.height) ||
+      (RECT.height < 0 && RECT.height <= y0 && y0 <= 0)
+    ) {
+      // Intersection
+      ctx.beginPath();
+      ctx.rect(RECT.x - 3, RECT.y + y0 - 3, 6, 6);
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(
+        `(${RECT.x}, ${(RECT.y + y0).toFixed(2)})`,
+        RECT.x + 6,
+        RECT.y + y0 + 6,
+      );
+    }
+
+    if (
+      (RECT.height >= 0 && 0 <= y1 && y1 <= RECT.height) ||
+      (RECT.height < 0 && RECT.height <= y1 && y1 <= 0)
+    ) {
+      // Intersection
+      ctx.beginPath();
+      ctx.rect(RECT.x - 3, RECT.y + y1 - 3, 6, 6);
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(
+        `(${RECT.x}, ${(RECT.y + y1).toFixed(2)})`,
+        RECT.x + 6,
+        RECT.y + y1 + 6,
+      );
+    }
+  }
+}
+
+function drawRightIntersections(ctx) {
+  const c =
+    distSqrd({ x: RECT.x + RECT.width, y: RECT.y }, CIRCLE) -
+    CIRCLE.radius ** 2;
+  const b = 2 * (RECT.y - CIRCLE.y);
+  const det = b ** 2 - 4 * c;
+  if (det >= 0) {
+    const y0 = (1 / 2) * (-b + Math.sqrt(det));
+    const y1 = (1 / 2) * (-b - Math.sqrt(det));
+
+    ctx.strokeStyle = "red";
+    if (
+      (RECT.height >= 0 && 0 <= y0 && y0 <= RECT.height) ||
+      (RECT.height < 0 && RECT.height <= y0 && y0 <= 0)
+    ) {
+      // Intersection
+      ctx.beginPath();
+      ctx.rect(RECT.x + RECT.width - 3, RECT.y + y0 - 3, 6, 6);
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(
+        `(${RECT.x + RECT.width}, ${(RECT.y + y0).toFixed(2)})`,
+        RECT.x + RECT.width + 6,
+        RECT.y + y0 + 6,
+      );
+    }
+
+    if (
+      (RECT.height >= 0 && 0 <= y1 && y1 <= RECT.height) ||
+      (RECT.height < 0 && RECT.height <= y1 && y1 <= 0)
+    ) {
+      // Intersection
+      ctx.beginPath();
+      ctx.rect(RECT.x + RECT.width - 3, RECT.y + y1 - 3, 6, 6);
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(
+        `(${RECT.x + RECT.width}, ${(RECT.y + y1).toFixed(2)})`,
+        RECT.x + RECT.width + 6,
+        RECT.y + y1 + 6,
+      );
+    }
+  }
+}
+
+function drawTopIntersections(ctx) {
+  const c = distSqrd(RECT, CIRCLE) - CIRCLE.radius ** 2;
+  const b = 2 * (RECT.x - CIRCLE.x);
+  const det = b ** 2 - 4 * c;
+  if (det >= 0) {
+    const x0 = (1 / 2) * (-b + Math.sqrt(det));
+    const x1 = (1 / 2) * (-b - Math.sqrt(det));
+
+    ctx.strokeStyle = "red";
+    if (
+      (RECT.width >= 0 && 0 <= x0 && x0 <= RECT.width) ||
+      (RECT.width < 0 && RECT.width <= x0 && x0 <= 0)
+    ) {
+      // Intersection
+      ctx.beginPath();
+      ctx.rect(RECT.x + x0 - 3, RECT.y - 3, 6, 6);
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(
+        `(${(RECT.x + x0).toFixed(2)}, ${RECT.y})`,
+        RECT.x + x0 + 6,
+        RECT.y + 6,
+      );
+    }
+
+    if (
+      (RECT.width >= 0 && 0 <= x1 && x1 <= RECT.width) ||
+      (RECT.width < 0 && RECT.width <= x1 && x1 <= 0)
+    ) {
+      // Intersection
+      ctx.beginPath();
+      ctx.rect(RECT.x + x1 - 3, RECT.y - 3, 6, 6);
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(
+        `(${(RECT.x + x1).toFixed(2)}, ${RECT.y})`,
+        RECT.x + x1 + 6,
+        RECT.y + 6,
+      );
+    }
+  }
+}
+
+function drawBottomIntersections(ctx) {
+  const c =
+    distSqrd({ x: RECT.x, y: RECT.y + RECT.height }, CIRCLE) -
+    CIRCLE.radius ** 2;
+  const b = 2 * (RECT.x - CIRCLE.x);
+  const det = b ** 2 - 4 * c;
+  if (det >= 0) {
+    const x0 = (1 / 2) * (-b + Math.sqrt(det));
+    const x1 = (1 / 2) * (-b - Math.sqrt(det));
+
+    ctx.strokeStyle = "red";
+    if (
+      (RECT.width >= 0 && 0 <= x0 && x0 <= RECT.width) ||
+      (RECT.width < 0 && RECT.width <= x0 && x0 <= 0)
+    ) {
+      // Intersection
+      ctx.beginPath();
+      ctx.rect(RECT.x + x0 - 3, RECT.y + RECT.height - 3, 6, 6);
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(
+        `(${(RECT.x + x0).toFixed(2)}, ${RECT.y + RECT.height})`,
+        RECT.x + x0 + 6,
+        RECT.y + RECT.height + 6,
+      );
+    }
+
+    if (
+      (RECT.width >= 0 && 0 <= x1 && x1 <= RECT.width) ||
+      (RECT.width < 0 && RECT.width <= x1 && x1 <= 0)
+    ) {
+      // Intersection
+      ctx.beginPath();
+      ctx.rect(RECT.x + x1 - 3, RECT.y + RECT.height - 3, 6, 6);
+      ctx.stroke();
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(
+        `(${(RECT.x + x1).toFixed(2)}, ${RECT.y + RECT.height})`,
+        RECT.x + x1 + 6,
+        RECT.y + RECT.height + 6,
+      );
+    }
+  }
+}
+
+function distSqrd(p1, p2) {
+  return (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
 }
