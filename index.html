@@ -6,7 +6,7 @@
   </head>
   <body>
     <h1>A circle and rectangle on an HTML canvas</h1>
-    <h2>Circle Parameters</h2>
+    Circle Parameters
     <div>
       <label for="circle-x">X:</label>
       <input type="range" id="circle-x" />
@@ -15,8 +15,8 @@
       <label for="radius">Radius:</label>
       <input type="range" id="radius" />
     </div>
-    <h2>Rectangle Parameters</h2>
-    <form>
+    Rectangle Parameters
+    <div>
       <label for="rect-x">X:</label>
       <input type="range" id="rect-x" />
       <label for="rect-y">Y:</label>
@@ -25,7 +25,10 @@
       <input type="range" id="width" />
       <label for="height">Height:</label>
       <input type="range" id="height" />
-    </form>
+    </div>
+    <div>
+      <button id="toggle-labels">Toggle labels</button>
+    </div>
     <canvas id="myCanvas">
       <script src="index.js"></script>
     </canvas>

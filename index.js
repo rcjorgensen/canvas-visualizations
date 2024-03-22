@@ -14,6 +14,8 @@ const CIRCLE = {
   radius: 120,
 };
 
+let showLabels = true;
+
 draw();
 
 const inputCircleX = document.getElementById("circle-x");
@@ -79,6 +81,12 @@ inputHeight.oninput = (e) => {
   draw();
 };
 
+const toggleLabels = document.getElementById("toggle-labels");
+toggleLabels.onclick = (e) => {
+  showLabels = !showLabels;
+  draw();
+};
+
 function draw() {
   const canvas = document.getElementById("myCanvas");
 
@@ -116,15 +124,17 @@ function draw() {
   ctx.lineTo(CIRCLE.x - CIRCLE.radius, CIRCLE.y);
   ctx.stroke();
 
-  // Text
-  ctx.fillStyle = "white";
-  ctx.fillText(`(${CIRCLE.x}, ${CIRCLE.y})`, CIRCLE.x - 25, CIRCLE.y - 5);
-  ctx.fillText(
-    `${CIRCLE.radius}`,
-    CIRCLE.x - CIRCLE.radius / 2 - 20,
-    CIRCLE.y - 5,
-  );
-  ctx.fillText(`(${RECT.x}, ${RECT.y})`, RECT.x - 25, RECT.y - 5);
-  ctx.fillText(`${RECT.height}`, RECT.x - 5, RECT.y + RECT.height / 2);
-  ctx.fillText(`${RECT.width}`, RECT.x + RECT.width / 2 - 5, RECT.y + 3);
+  if (showLabels) {
+    // Text
+    ctx.fillStyle = "white";
+    ctx.fillText(`(${CIRCLE.x}, ${CIRCLE.y})`, CIRCLE.x - 25, CIRCLE.y - 5);
+    ctx.fillText(
+      `${CIRCLE.radius}`,
+      CIRCLE.x - CIRCLE.radius / 2 - 20,
+      CIRCLE.y - 5,
+    );
+    ctx.fillText(`(${RECT.x}, ${RECT.y})`, RECT.x - 25, RECT.y - 5);
+    ctx.fillText(`${RECT.height}`, RECT.x - 5, RECT.y + RECT.height / 2);
+    ctx.fillText(`${RECT.width}`, RECT.x + RECT.width / 2 - 5, RECT.y + 3);
+  }
 }
