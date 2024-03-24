@@ -83,7 +83,7 @@ function draw() {
   ctx.lineTo(rectLeft, rectBottom + radius);
   ctx.stroke();
 
-  // Draw collision border for circles with given radius
+  // Draw collision boundary for circles with given radius
   ctx.strokeStyle = "teal";
   ctx.setLineDash([15, 5]);
   ctx.beginPath();
@@ -104,29 +104,41 @@ function detectCollision(cx, cy) {
   const distX = Math.abs(cx - rectCX);
   const distY = Math.abs(cy - rectCY);
 
+  // 1. Check if the center of the circle lies outside of the outer rectangle
+  //    constructed by padding the original rectangle with the radius
+  //    of the circle
   if (distX > rectWidthHalf + radius || distY > rectHeightHalf + radius) {
     return { collides: false, message: "Outside bounding rectangle" };
   }
 
+  // 2. Now we know the center of the circle lies inside the outer rectangle,
+  //    so check if it lies outside one of the corners.
+  //    If it does lie outside the corners, it must lie within the collision boundary.
   if (distX <= rectWidthHalf || distY <= rectHeightHalf) {
     return {
       collides: true,
-      message: "Inside collision border, but not in the corner",
+      message: "Inside collision boundary, but not in the corner",
     };
   }
 
+  // 3. Now we know the center lies in one of the corners, so we need to check
+  //    if the distance to the nearest corner is less than the radius of the circle.
+  //    If it is, it means it lies within the collision boundary.
   const distToCornerSqrd =
-    (cx - rectCX - rectWidthHalf) ** 2 + (cy - rectCY - rectHeightHalf) ** 2;
+    (Math.abs(cx - rectCX) - rectWidthHalf) ** 2 +
+    (Math.abs(cy - rectCY) - rectHeightHalf) ** 2;
   if (distToCornerSqrd <= radius ** 2) {
     return {
       collides: true,
-      message: "Inside corner of collision border",
+      message: "Inside corner of collision boundary",
     };
   }
 
+  // 4. It was not within a radius distance of a corner, so it lies in the corner,
+  //    but outside the collision boundary.
   return {
     collides: false,
     message:
-      "Inside corner of bounding rectangle, but outside collision border",
+      "Inside corner of bounding rectangle, but outside collision boundary",
   };
 }
