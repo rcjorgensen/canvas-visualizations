@@ -1,39 +1,31 @@
 const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 800;
 
-// Center of rectangle
-const RECT_X = CANVAS_WIDTH / 2;
-const RECT_Y = CANVAS_HEIGHT / 2;
-
 const params = new URL(document.location).searchParams;
 const rectWidth = parseInt(params.get("rw") ?? 400);
 const rectHeight = parseInt(params.get("rh") ?? 300);
 const radius = parseInt(params.get("r") ?? 100);
-
-const topX = RECT_X - rectWidth / 2;
-const topY = RECT_Y - rectHeight / 2;
+const rectCX = CANVAS_WIDTH / 2;
+const rectCY = CANVAS_HEIGHT / 2;
+const rectWidthHalf = rectWidth / 2;
+const rectHeightHalf = rectHeight / 2;
+const rectLeft = rectCX - rectWidthHalf;
+const rectRight = rectCX + rectWidthHalf;
+const rectTop = rectCY - rectHeightHalf;
+const rectBottom = rectCY + rectHeightHalf;
 
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
-canvasRect = canvas.getBoundingClientRect();
 
 canvas.onclick = (e) => {
-  const cx = e.clientX - canvasRect.left;
-  const cy = e.clientY - canvasRect.top;
+  const cx = e.offsetX;
+  const cy = e.offsetY;
 
   draw();
 
-  const result = collides(
-    cx,
-    cy,
-    radius,
-    RECT_X,
-    RECT_Y,
-    rectWidth,
-    rectHeight,
-  );
+  const result = detectCollision(cx, cy);
   if (result.collides) {
     ctx.strokeStyle = "green";
   } else {
@@ -61,71 +53,71 @@ function draw() {
   ctx.strokeStyle = "coral";
   ctx.setLineDash([]);
   ctx.beginPath();
-  ctx.rect(topX, topY, rectWidth, rectHeight);
+  ctx.rect(rectLeft, rectTop, rectWidth, rectHeight);
   ctx.stroke();
 
   // Draw bounding rectangle
   ctx.strokeStyle = "#6A5ACD";
-  const topBX = topX - radius;
-  const topBY = topY - radius;
-  const rectBWidth = rectWidth + 2 * radius;
-  const rectBHeight = rectHeight + 2 * radius;
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
-  ctx.rect(topBX, topBY, rectBWidth, rectBHeight);
+  ctx.rect(
+    rectLeft - radius,
+    rectTop - radius,
+    rectWidth + 2 * radius,
+    rectHeight + 2 * radius,
+  );
   ctx.stroke();
 
   // Draw corner boundaries
-  ctx.moveTo(topX, topY - radius);
-  ctx.lineTo(topX, topY);
-  ctx.lineTo(topX - radius, topY);
-  ctx.moveTo(topX + rectWidth, topY - radius);
-  ctx.lineTo(topX + rectWidth, topY);
-  ctx.lineTo(topX + rectWidth + radius, topY);
-  ctx.moveTo(topX + rectWidth + radius, topY + rectHeight);
-  ctx.lineTo(topX + rectWidth, topY + rectHeight);
-  ctx.lineTo(topX + rectWidth, topY + rectHeight + radius);
-  ctx.moveTo(topX - radius, topY + rectHeight);
-  ctx.lineTo(topX, topY + rectHeight);
-  ctx.lineTo(topX, topY + rectHeight + radius);
+  ctx.moveTo(rectLeft, rectTop - radius);
+  ctx.lineTo(rectLeft, rectTop);
+  ctx.lineTo(rectLeft - radius, rectTop);
+  ctx.moveTo(rectRight, rectTop - radius);
+  ctx.lineTo(rectRight, rectTop);
+  ctx.lineTo(rectRight + radius, rectTop);
+  ctx.moveTo(rectRight + radius, rectBottom);
+  ctx.lineTo(rectRight, rectBottom);
+  ctx.lineTo(rectRight, rectBottom + radius);
+  ctx.moveTo(rectLeft - radius, rectBottom);
+  ctx.lineTo(rectLeft, rectBottom);
+  ctx.lineTo(rectLeft, rectBottom + radius);
   ctx.stroke();
 
   // Draw collision border for circles with given radius
   ctx.strokeStyle = "teal";
   ctx.setLineDash([15, 5]);
   ctx.beginPath();
-  ctx.arc(topX, topY, radius, Math.PI, (3 * Math.PI) / 2);
+  ctx.arc(rectLeft, rectTop, radius, Math.PI, (3 * Math.PI) / 2);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(topX + rectWidth, topY, radius, (3 * Math.PI) / 2, 0);
+  ctx.arc(rectRight, rectTop, radius, (3 * Math.PI) / 2, 0);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(topX + rectWidth, topY + rectHeight, radius, 0, Math.PI / 2);
+  ctx.arc(rectRight, rectBottom, radius, 0, Math.PI / 2);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(topX, topY + rectHeight, radius, Math.PI / 2, Math.PI);
+  ctx.arc(rectLeft, rectBottom, radius, Math.PI / 2, Math.PI);
   ctx.stroke();
 }
 
-function collides(cx, cy, rad, rx, ry, rw, rh) {
-  const distX = Math.abs(cx - rx);
-  const distY = Math.abs(cy - ry);
-  const rwHalf = rw / 2;
-  const rhHalf = rh / 2;
+function detectCollision(cx, cy) {
+  const distX = Math.abs(cx - rectCX);
+  const distY = Math.abs(cy - rectCY);
 
-  if (distX > rw / 2 + rad || distY > rh / 2 + rad) {
+  if (distX > rectWidthHalf + radius || distY > rectHeightHalf + radius) {
     return { collides: false, message: "Outside bounding rectangle" };
   }
 
-  if (distX <= rwHalf || distY <= rhHalf) {
+  if (distX <= rectWidthHalf || distY <= rectHeightHalf) {
     return {
       collides: true,
       message: "Inside collision border, but not in the corner",
     };
   }
 
-  const distToCornerSqrd = (cx - rx - rwHalf) ** 2 + (cy - ry - rhHalf) ** 2;
-  if (distToCornerSqrd <= rad ** 2) {
+  const distToCornerSqrd =
+    (cx - rectCX - rectWidthHalf) ** 2 + (cy - rectCY - rectHeightHalf) ** 2;
+  if (distToCornerSqrd <= radius ** 2) {
     return {
       collides: true,
       message: "Inside corner of collision border",
