@@ -125,8 +125,7 @@ function detectCollision(cx, cy) {
   //    if the distance to the nearest corner is less than the radius of the circle.
   //    If it is, it means it lies within the collision boundary.
   const distToCornerSqrd =
-    (Math.abs(cx - rectCX) - rectWidthHalf) ** 2 +
-    (Math.abs(cy - rectCY) - rectHeightHalf) ** 2;
+    (distX - rectWidthHalf) ** 2 + (distY - rectHeightHalf) ** 2;
   if (distToCornerSqrd <= radius ** 2) {
     return {
       collides: true,
