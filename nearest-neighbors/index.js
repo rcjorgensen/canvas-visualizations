@@ -7,6 +7,7 @@ const params = new URL(document.location).searchParams;
 const count = parseInt(params.get("count") ?? 400);
 const mean = parseInt(params.get("mean") ?? 24);
 const stdDev = parseInt(params.get("stdDev") ?? 6);
+const radius = 12;
 
 let selected;
 const rectangles = [];
@@ -25,8 +26,52 @@ for (let i = 0; i < count; ++i) {
   const right = x + width / 2;
   const bottom = y + height / 2;
 
-  rectangles.push({ x, y, left, top, right, bottom, width, height });
+  rectangles.push({
+    x,
+    y,
+    left,
+    top,
+    right,
+    bottom,
+    width,
+    height,
+    neighbors: [],
+  });
 }
+
+const start = performance.now();
+
+for (let i = 0; i < rectangles.length; ++i) {
+  for (let j = 0; j < rectangles.length; ++j) {
+    if (i !== j) {
+      const rect1 = rectangles[i];
+      if (rect1.width <= 24 || rect1.height <= 24) {
+        const rect2 = rectangles[j];
+
+        const distX = Math.abs(rect1.x - rect2.x);
+        const distY = Math.abs(rect1.y - rect2.y);
+
+        const rectWidthHalf = rect2.width / 2;
+        const rectHeightHalf = rect2.height / 2;
+
+        if (
+          distX <= rectWidthHalf + radius &&
+          distY <= rectHeightHalf + radius &&
+          (distX <= rectWidthHalf ||
+            distY <= rectHeightHalf ||
+            (distX - rectWidthHalf) ** 2 + (distY - rectHeightHalf) ** 2 <=
+              radius ** 2)
+        ) {
+          rect1.neighbors.push(rect2);
+        }
+      }
+    }
+  }
+}
+
+const end = performance.now();
+const output = document.getElementById("output");
+output.innerHTML += `<p>Spacing calculation for ${rectangles.length} rectangles took ${(end - start).toFixed(2)} ms</p>`;
 
 // draw
 
@@ -50,14 +95,23 @@ function draw() {
       ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
 
       ctx.beginPath();
-      ctx.arc(rect.x, rect.y, 12, 0, 2 * Math.PI);
+      ctx.arc(rect.x, rect.y, radius, 0, 2 * Math.PI);
       ctx.stroke();
+
+      ctx.strokeStyle = "#ADD8E6";
+      for (let nbor of rect.neighbors) {
+        ctx.strokeRect(nbor.left, nbor.top, nbor.width, nbor.height);
+      }
 
       ctx.globalAlpha = 0.2;
     }
 
     if (rect.width <= 24 || rect.height <= 24) {
-      ctx.fillStyle = "#FFC0CB";
+      if (rect.neighbors.length > 0) {
+        ctx.fillStyle = "#FFC0CB";
+      } else {
+        ctx.fillStyle = "#FFFF99";
+      }
     } else {
       ctx.fillStyle = "#98FB98";
     }
