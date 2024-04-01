@@ -75,13 +75,30 @@ class QuadTree {
     this.items = [];
   }
 
-  // Recursively get number of items in this and all descendant layers
   size() {
     let l = this.items.length;
     for (c of this.children) {
       l += c.size();
     }
     return l;
+  }
+
+  insert(item, boundingRect) {
+    if (this.depth <= MAX_DEPTH) {
+      for (let i = 0; i < 4; ++i) {
+        if (this.childRects[i].contains(boundingRect)) {
+          if (this.children[i] === undefined) {
+            this.children[i] = new QuadTree(this.childRects[i], this.depth + 1);
+          }
+
+          this.children[i].insert(item, boundingRect);
+          return;
+        }
+      }
+    }
+
+    // If we reached the maximum depth, or if the item didn't fit into any of the children, we add it to the current quad
+    this.items.push(item);
   }
 }
 
@@ -110,11 +127,11 @@ for (let i = 0; i < count; ++i) {
 
 const start = performance.now();
 
-// Strategy: Build Quadtree from the padded rectangles
+const root = new QuadTree(new Rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT));
+for (let rect of rectangles) {
+  root.insert(rect, getBoundingRect(rect));
+}
 
-// Step 1:
-
-// "#FFC0CB":
 const end = performance.now();
 
 const output = document.getElementById("output");
@@ -134,6 +151,18 @@ function draw() {
   ctx.fillStyle = "#202020";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // draw quads
+  ctx.strokeStyle = "#F5F5F5"; // "white"
+  traverse(root, (node) => {
+    ctx.strokeRect(
+      node.rect.xlow,
+      node.rect.ylow,
+      node.rect.width,
+      node.rect.height,
+    );
+  });
+
+  // draw rects
   ctx.globalAlpha = 0.2;
   rectangles.forEach((rect, i) => {
     ctx.fillStyle = "#ADD8E6"; // blue
@@ -142,16 +171,7 @@ function draw() {
     if (rect.width <= DIAMETER || rect.height <= DIAMETER) {
       ctx.setLineDash([2, 2]);
       ctx.strokeStyle = "#FFFF99"; // yellow
-      const cx = rect.xlow + rect.width / 2;
-      const cy = rect.ylow + rect.height / 2;
-      const width = Math.max(rect.width, DIAMETER);
-      const height = Math.max(rect.height, DIAMETER);
-      const boundingRect = new Rectangle(
-        cx - width / 2,
-        cy - height / 2,
-        width,
-        height,
-      );
+      const boundingRect = getBoundingRect(rect);
       ctx.strokeRect(
         boundingRect.xlow,
         boundingRect.ylow,
@@ -171,6 +191,27 @@ function draw() {
 // handlers
 
 // helpers
+
+function traverse(node, callback) {
+  callback(node);
+
+  for (let child of node.children) {
+    if (child !== undefined) {
+      traverse(child, callback);
+    }
+  }
+}
+
+function getBoundingRect(rect) {
+  const width = Math.max(rect.width, DIAMETER);
+  const height = Math.max(rect.height, DIAMETER);
+  return new Rectangle(
+    rect.xlow + (rect.width - width) / 2,
+    rect.ylow + (rect.height - height) / 2,
+    width,
+    height,
+  );
+}
 
 function sfc32(a, b, c, d) {
   return function () {
