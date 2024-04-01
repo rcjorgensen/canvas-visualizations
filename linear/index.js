@@ -1,58 +1,88 @@
-// setup state
+// data structures
 
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 800;
+class Rectangle {
+  constructor(xlow, ylow, width, height) {
+    this.xlow = xlow;
+    this.ylow = ylow;
+    this.width = width;
+    this.height = height;
+  }
+
+  get xhigh() {
+    return this.xlow + this.width;
+  }
+
+  get yhigh() {
+    return this.ylow + this.height;
+  }
+
+  get cx() {
+    return this.xlow + this.width / 2;
+  }
+
+  get cy() {
+    return this.ylow + this.height / 2;
+  }
+
+  contains(rect) {
+    if (rect.xlow < this.xlow) return false;
+    if (rect.xhigh >= this.xhigh) return false;
+    if (rect.ylow < this.ylow) return false;
+    if (rect.yhigh >= this.yhigh) return false;
+    return true;
+  }
+
+  overlaps(rect) {
+    if (rect.xhigh < this.xlow) return false;
+    if (rect.xlow > this.xhigh) return false;
+    if (rect.yhigh < this.ylow) return false;
+    if (rect.ylow > this.yhigh) return false;
+    return true;
+  }
+}
+
+// setup state
 
 const params = new URL(document.location).searchParams;
 const count = parseInt(params.get("count") ?? 400);
-const mean = parseInt(params.get("mean") ?? 24);
+const maxDepth = parseInt(params.get("maxDepth") ?? 8);
+const radius = parseInt(params.get("radius") ?? 12);
+const diameter = radius * 2;
+const mean = parseInt(params.get("mean") ?? diameter);
 const stdDev = parseInt(params.get("stdDev") ?? 6);
-const radius = 12;
+const canvasWidth = parseInt(params.get("canvasWidth") ?? 1600);
+const canvasHeight = parseInt(params.get("canvasHeight") ?? 1200);
 
 let selected;
 const rectangles = [];
+const collisionMap = new Map();
 
 const seed = 1337 ^ 0xdeadbeef;
 const rand = sfc32(0x9e3779b9, 0x243f6a88, 0xb7e15162, seed);
 
 for (let i = 0; i < count; ++i) {
-  const x = Math.floor(rand() * CANVAS_WIDTH);
-  const y = Math.floor(rand() * CANVAS_HEIGHT);
+  const cx = Math.floor(rand() * canvasWidth);
+  const cy = Math.floor(rand() * canvasHeight);
   const width = normal();
   const height = normal();
 
-  const left = x - width / 2;
-  const top = y - height / 2;
-  const right = x + width / 2;
-  const bottom = y + height / 2;
+  const rect = new Rectangle(cx - width / 2, cy - height / 2, width, height);
 
-  rectangles.push({
-    x,
-    y,
-    left,
-    top,
-    right,
-    bottom,
-    width,
-    height,
-    neighbors: [],
-  });
+  rectangles.push(rect);
+  collisionMap.set(rect, []);
 }
 
 const start = performance.now();
 
-for (let i = 0; i < rectangles.length; ++i) {
-  for (let j = 0; j < rectangles.length; ++j) {
-    if (i !== j) {
-      const rect1 = rectangles[i];
-      if (rect1.width <= 24 || rect1.height <= 24) {
-        const rect2 = rectangles[j];
+for (let rect of rectangles) {
+  if (rect.width <= diameter || rect.height <= diameter) {
+    for (let cand of rectangles) {
+      if (cand !== rect) {
+        const distX = Math.abs(rect.cx - cand.cx);
+        const distY = Math.abs(rect.cy - cand.cy);
 
-        const distX = Math.abs(rect1.x - rect2.x);
-        const distY = Math.abs(rect1.y - rect2.y);
-
-        const rectWidthHalf = rect2.width / 2;
-        const rectHeightHalf = rect2.height / 2;
+        const rectWidthHalf = cand.width / 2;
+        const rectHeightHalf = cand.height / 2;
 
         if (
           distX <= rectWidthHalf + radius &&
@@ -62,23 +92,42 @@ for (let i = 0; i < rectangles.length; ++i) {
             (distX - rectWidthHalf) ** 2 + (distY - rectHeightHalf) ** 2 <=
               radius ** 2)
         ) {
-          rect1.neighbors.push(rect2);
+          collisionMap.get(rect).push(cand);
         }
       }
     }
   }
 }
 
-const end = performance.now();
-const output = document.getElementById("output");
-output.innerHTML += `<p>Spacing calculation for ${rectangles.length} rectangles took ${(end - start).toFixed(2)} ms</p>`;
+const elapsed = performance.now() - start;
+
+let wellsized = 0;
+let undersized = 0;
+let underspaced = 0;
+for (let [key, value] of collisionMap) {
+  if (key.width <= diameter || key.height <= diameter) {
+    if (value.length > 0) {
+      ++underspaced;
+    } else {
+      ++undersized;
+    }
+  } else {
+    ++wellsized;
+  }
+}
+const output = document.getElementById("message");
+output.innerHTML +=
+  `<p>Linear spacing calculation for ${rectangles.length} rectangles took ${elapsed.toFixed(2)} ms` +
+  ` | <span style="color: #98FB98">Wellsized</span> rectangles: ${wellsized}` +
+  ` | <span style="color: #FFFF99">Undersized</span> rectangles: ${undersized}` +
+  ` | <span style="color: #FFC0CB">Underspaced</span> rectangles: ${underspaced}</p>`;
 
 // draw
 
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
-canvas.width = CANVAS_WIDTH;
-canvas.height = CANVAS_HEIGHT;
+canvas.width = canvasWidth;
+canvas.height = canvasHeight;
 
 draw();
 
@@ -88,26 +137,28 @@ function draw() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.globalAlpha = 0.2;
-  rectangles.forEach((rect, i) => {
-    if (selected === i) {
+  for (let rect of rectangles) {
+    const neighbors = collisionMap.get(rect);
+
+    if (rect === selected) {
       ctx.globalAlpha = 1;
       ctx.strokeStyle = "#FFFF99";
-      ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
+      ctx.strokeRect(rect.xlow, rect.ylow, rect.width, rect.height);
 
       ctx.beginPath();
-      ctx.arc(rect.x, rect.y, radius, 0, 2 * Math.PI);
+      ctx.arc(rect.cx, rect.cy, radius, 0, 2 * Math.PI);
       ctx.stroke();
 
       ctx.strokeStyle = "#ADD8E6";
-      for (let nbor of rect.neighbors) {
-        ctx.strokeRect(nbor.left, nbor.top, nbor.width, nbor.height);
+      for (let nbor of neighbors) {
+        ctx.strokeRect(nbor.xlow, nbor.ylow, nbor.width, nbor.height);
       }
 
       ctx.globalAlpha = 0.2;
     }
 
     if (rect.width <= 24 || rect.height <= 24) {
-      if (rect.neighbors.length > 0) {
+      if (neighbors.length > 0) {
         ctx.fillStyle = "#FFC0CB";
       } else {
         ctx.fillStyle = "#FFFF99";
@@ -115,8 +166,8 @@ function draw() {
     } else {
       ctx.fillStyle = "#98FB98";
     }
-    ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
-  });
+    ctx.fillRect(rect.xlow, rect.ylow, rect.width, rect.height);
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -127,17 +178,16 @@ canvas.onclick = (e) => {
   const y = e.offsetY;
 
   selected = null;
-
-  rectangles.forEach((rect, i) => {
+  for (let rect of rectangles) {
     if (
-      rect.left <= x &&
-      x <= rect.right &&
-      rect.top <= y &&
-      y <= rect.bottom
+      rect.xlow <= x &&
+      x <= rect.xhigh &&
+      rect.ylow <= y &&
+      y <= rect.yhigh
     ) {
-      selected = i;
+      selected = rect;
     }
-  });
+  }
 
   draw();
 };

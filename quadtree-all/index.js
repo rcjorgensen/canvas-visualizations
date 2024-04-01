@@ -1,14 +1,4 @@
-// constants
-
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 800;
-
-const RADIUS = 12;
-const DIAMETER = RADIUS * 2;
-
-const MAX_DEPTH = 8;
-
-// classes
+// data structures
 
 class Rectangle {
   constructor(xlow, ylow, width, height) {
@@ -24,6 +14,14 @@ class Rectangle {
 
   get yhigh() {
     return this.ylow + this.height;
+  }
+
+  get cx() {
+    return this.xlow + this.width / 2;
+  }
+
+  get cy() {
+    return this.ylow + this.height / 2;
   }
 
   contains(rect) {
@@ -75,16 +73,8 @@ class QuadTree {
     this.items = [];
   }
 
-  size() {
-    let l = this.items.length;
-    for (let c of this.children) {
-      l += c.size();
-    }
-    return l;
-  }
-
   insert(item, boundingRect) {
-    if (this.depth <= MAX_DEPTH) {
+    if (this.depth <= maxDepth) {
       for (let i = 0; i < 4; ++i) {
         if (this.childRects[i].contains(boundingRect)) {
           if (this.children[i] === undefined) {
@@ -117,7 +107,6 @@ class QuadTree {
 
   search(boundingRect, result = []) {
     for (let { boundingRect: b, item: r } of this.items) {
-      checked.push(r);
       if (boundingRect.overlaps(b)) {
         result.push(r);
       }
@@ -141,39 +130,96 @@ class QuadTree {
 
 const params = new URL(document.location).searchParams;
 const count = parseInt(params.get("count") ?? 400);
-const mean = parseInt(params.get("mean") ?? DIAMETER);
+const maxDepth = parseInt(params.get("maxDepth") ?? 8);
+const radius = parseInt(params.get("radius") ?? 12);
+const diameter = radius * 2;
+const mean = parseInt(params.get("mean") ?? diameter);
 const stdDev = parseInt(params.get("stdDev") ?? 6);
+const canvasWidth = parseInt(params.get("canvasWidth") ?? 1600);
+const canvasHeight = parseInt(params.get("canvasHeight") ?? 1200);
 
-const rectangles = [];
 let selected;
-let overlapping = [];
-let checked = [];
+const rectangles = [];
+const collisionMap = new Map();
 
 const seed = 1337 ^ 0xdeadbeef;
 const rand = sfc32(0x9e3779b9, 0x243f6a88, 0xb7e15162, seed);
 
 for (let i = 0; i < count; ++i) {
-  const cx = Math.floor(rand() * CANVAS_WIDTH);
-  const cy = Math.floor(rand() * CANVAS_HEIGHT);
+  const cx = Math.floor(rand() * canvasWidth);
+  const cy = Math.floor(rand() * canvasHeight);
   const width = normal();
   const height = normal();
 
-  rectangles.push(
-    new Rectangle(cx - width / 2, cy - height / 2, width, height),
-  );
+  const rect = new Rectangle(cx - width / 2, cy - height / 2, width, height);
+
+  rectangles.push(rect);
+  collisionMap.set(rect, []);
 }
 
-const root = new QuadTree(new Rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT));
+const start = performance.now();
+
+const root = new QuadTree(new Rectangle(0, 0, canvasWidth, canvasHeight));
 for (let rect of rectangles) {
   root.insert(rect, getBoundingRect(rect));
 }
+
+for (let rect of rectangles) {
+  if (rect.width <= diameter || rect.height <= diameter) {
+    const candidates = root.search(getBoundingRect(rect));
+
+    for (let cand of candidates) {
+      if (cand !== rect) {
+        const distX = Math.abs(rect.cx - cand.cx);
+        const distY = Math.abs(rect.cy - cand.cy);
+
+        const rectWidthHalf = cand.width / 2;
+        const rectHeightHalf = cand.height / 2;
+
+        if (
+          distX <= rectWidthHalf + radius &&
+          distY <= rectHeightHalf + radius &&
+          (distX <= rectWidthHalf ||
+            distY <= rectHeightHalf ||
+            (distX - rectWidthHalf) ** 2 + (distY - rectHeightHalf) ** 2 <=
+              radius ** 2)
+        ) {
+          collisionMap.get(rect).push(cand);
+        }
+      }
+    }
+  }
+}
+
+const elapsed = performance.now() - start;
+
+let wellsized = 0;
+let undersized = 0;
+let underspaced = 0;
+for (let [key, value] of collisionMap) {
+  if (key.width <= diameter || key.height <= diameter) {
+    if (value.length > 0) {
+      ++underspaced;
+    } else {
+      ++undersized;
+    }
+  } else {
+    ++wellsized;
+  }
+}
+const output = document.getElementById("message");
+output.innerHTML +=
+  `<p>QuadTree spacing calculation for ${rectangles.length} rectangles took ${elapsed.toFixed(2)} ms` +
+  ` | <span style="color: #98FB98">Wellsized</span> rectangles: ${wellsized}` +
+  ` | <span style="color: #FFFF99">Undersized</span> rectangles: ${undersized}` +
+  ` | <span style="color: #FFC0CB">Underspaced</span> rectangles: ${underspaced}</p>`;
 
 // draw
 
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
-canvas.width = CANVAS_WIDTH;
-canvas.height = CANVAS_HEIGHT;
+canvas.width = canvasWidth;
+canvas.height = canvasHeight;
 
 draw();
 
@@ -193,37 +239,38 @@ function draw() {
     );
   });
 
-  // draw rects
   ctx.globalAlpha = 0.2;
-  rectangles.forEach((rect, i) => {
+  for (let rect of rectangles) {
+    const neighbors = collisionMap.get(rect);
+
     if (rect === selected) {
-      ctx.fillStyle = "green";
-    } else if (overlapping.includes(rect)) {
-      ctx.fillStyle = "yellow";
-    } else if (checked.includes(rect)) {
-      ctx.fillStyle = "red";
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#FFFF99";
+      ctx.strokeRect(rect.xlow, rect.ylow, rect.width, rect.height);
+
+      ctx.beginPath();
+      ctx.arc(rect.cx, rect.cy, radius, 0, 2 * Math.PI);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#ADD8E6";
+      for (let nbor of neighbors) {
+        ctx.strokeRect(nbor.xlow, nbor.ylow, nbor.width, nbor.height);
+      }
+
+      ctx.globalAlpha = 0.2;
+    }
+
+    if (rect.width <= 24 || rect.height <= 24) {
+      if (neighbors.length > 0) {
+        ctx.fillStyle = "#FFC0CB";
+      } else {
+        ctx.fillStyle = "#FFFF99";
+      }
     } else {
-      ctx.fillStyle = "blue";
+      ctx.fillStyle = "#98FB98";
     }
     ctx.fillRect(rect.xlow, rect.ylow, rect.width, rect.height);
-
-    if (rect.width <= DIAMETER || rect.height <= DIAMETER) {
-      ctx.setLineDash([2, 2]);
-      ctx.strokeStyle = "yellow";
-      const boundingRect = getBoundingRect(rect);
-      ctx.strokeRect(
-        boundingRect.xlow,
-        boundingRect.ylow,
-        boundingRect.width,
-        boundingRect.height,
-      );
-    } else {
-      ctx.setLineDash([]);
-      ctx.strokeStyle = "green";
-      ctx.strokeRect(rect.xlow, rect.ylow, rect.width, rect.height);
-    }
-  });
-  ctx.setLineDash([]);
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -245,16 +292,6 @@ canvas.onclick = (e) => {
     }
   }
 
-  checked = [];
-
-  const start = performance.now();
-
-  overlapping = root.search(getBoundingRect(selected));
-
-  const elapsed = performance.now() - start;
-  document.getElementById("message").innerHTML =
-    `<p>Checked ${checked.length} rectangles and found ${overlapping.length - 1} candidate(s) in ${elapsed.toFixed(2)} ms</p>`; // selected rectangle is also in the overlapping list
-
   draw();
 };
 
@@ -271,8 +308,8 @@ function traverse(node, callback) {
 }
 
 function getBoundingRect(rect) {
-  const width = Math.max(rect.width, DIAMETER);
-  const height = Math.max(rect.height, DIAMETER);
+  const width = Math.max(rect.width, diameter);
+  const height = Math.max(rect.height, diameter);
   return new Rectangle(
     rect.xlow + (rect.width - width) / 2,
     rect.ylow + (rect.height - height) / 2,
