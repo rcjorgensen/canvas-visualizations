@@ -77,7 +77,7 @@ class QuadTree {
 
   size() {
     let l = this.items.length;
-    for (c of this.children) {
+    for (let c of this.children) {
       l += c.size();
     }
     return l;
@@ -98,7 +98,42 @@ class QuadTree {
     }
 
     // If we reached the maximum depth, or if the item didn't fit into any of the children, we add it to the current quad
-    this.items.push(item);
+    this.items.push({ boundingRect, item });
+  }
+
+  items(result = []) {
+    for (let { boundingRect: b, item: r } of this.items) {
+      result.push(r);
+    }
+
+    for (let child of this.children) {
+      if (child !== undefined) {
+        child.items(result);
+      }
+    }
+
+    return result;
+  }
+
+  search(boundingRect, result = []) {
+    for (let { boundingRect: b, item: r } of this.items) {
+      checked.push(r);
+      if (boundingRect.overlaps(b)) {
+        result.push(r);
+      }
+    }
+
+    for (let i = 0; i < 4; ++i) {
+      if (this.children[i] !== undefined) {
+        if (boundingRect.contains(this.childRects[i])) {
+          this.children[i].items(result);
+        } else if (this.childRects[i].overlaps(boundingRect)) {
+          this.children[i].search(boundingRect, result);
+        }
+      }
+    }
+
+    return result;
   }
 }
 
@@ -110,6 +145,9 @@ const mean = parseInt(params.get("mean") ?? DIAMETER);
 const stdDev = parseInt(params.get("stdDev") ?? 6);
 
 const rectangles = [];
+let selected;
+let overlapping = [];
+let checked = [];
 
 const seed = 1337 ^ 0xdeadbeef;
 const rand = sfc32(0x9e3779b9, 0x243f6a88, 0xb7e15162, seed);
@@ -125,17 +163,10 @@ for (let i = 0; i < count; ++i) {
   );
 }
 
-const start = performance.now();
-
 const root = new QuadTree(new Rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT));
 for (let rect of rectangles) {
   root.insert(rect, getBoundingRect(rect));
 }
-
-const end = performance.now();
-
-const output = document.getElementById("output");
-output.innerHTML += `<p>Spacing calculation for ${rectangles.length} rectangles took ${(end - start).toFixed(2)} ms</p>`;
 
 // draw
 
@@ -152,7 +183,7 @@ function draw() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // draw quads
-  ctx.strokeStyle = "#F5F5F5"; // "white"
+  ctx.strokeStyle = "white";
   traverse(root, (node) => {
     ctx.strokeRect(
       node.rect.xlow,
@@ -165,12 +196,20 @@ function draw() {
   // draw rects
   ctx.globalAlpha = 0.2;
   rectangles.forEach((rect, i) => {
-    ctx.fillStyle = "#ADD8E6"; // blue
+    if (rect === selected) {
+      ctx.fillStyle = "green";
+    } else if (overlapping.includes(rect)) {
+      ctx.fillStyle = "yellow";
+    } else if (checked.includes(rect)) {
+      ctx.fillStyle = "red";
+    } else {
+      ctx.fillStyle = "blue";
+    }
     ctx.fillRect(rect.xlow, rect.ylow, rect.width, rect.height);
 
     if (rect.width <= DIAMETER || rect.height <= DIAMETER) {
       ctx.setLineDash([2, 2]);
-      ctx.strokeStyle = "#FFFF99"; // yellow
+      ctx.strokeStyle = "yellow";
       const boundingRect = getBoundingRect(rect);
       ctx.strokeRect(
         boundingRect.xlow,
@@ -180,7 +219,7 @@ function draw() {
       );
     } else {
       ctx.setLineDash([]);
-      ctx.strokeStyle = "#98FB98"; // green
+      ctx.strokeStyle = "green";
       ctx.strokeRect(rect.xlow, rect.ylow, rect.width, rect.height);
     }
   });
@@ -189,6 +228,35 @@ function draw() {
 }
 
 // handlers
+
+canvas.onclick = (e) => {
+  const x = e.offsetX;
+  const y = e.offsetY;
+
+  selected = null;
+  for (let rect of rectangles) {
+    if (
+      rect.xlow <= x &&
+      x <= rect.xhigh &&
+      rect.ylow <= y &&
+      y <= rect.yhigh
+    ) {
+      selected = rect;
+    }
+  }
+
+  checked = [];
+
+  const start = performance.now();
+
+  overlapping = root.search(getBoundingRect(selected));
+
+  const elapsed = performance.now() - start;
+  document.getElementById("message").innerHTML =
+    `<p>Checked ${checked.length} rectangles and found ${overlapping.length - 1} candidate(s) in ${elapsed.toFixed(2)} ms</p>`; // selected rectangle is also in the overlapping list
+
+  draw();
+};
 
 // helpers
 
