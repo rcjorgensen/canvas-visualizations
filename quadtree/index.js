@@ -4,53 +4,33 @@ const CANVAS_WIDTH = 1200;
 const CANVAS_HEIGHT = 800;
 
 const RADIUS = 12;
+const DIAMETER = RADIUS * 2;
 
 const MAX_DEPTH = 8;
 
 // classes
 
-class Vector {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-}
-
 class Rectangle {
-  constructor(center, size) {
-    this.center = center;
-    this.size = size;
-  }
-
-  get xlow() {
-    return this.center.x - this.size.x / 2;
-  }
-
-  get ylow() {
-    return this.center.y - this.size.y / 2;
+  constructor(xlow, ylow, width, height) {
+    this.xlow = xlow;
+    this.ylow = ylow;
+    this.width = width;
+    this.height = height;
   }
 
   get xhigh() {
-    return this.center.x + this.size.x / 2;
+    return this.xlow + this.width;
   }
 
   get yhigh() {
-    return this.center.y + this.size.y / 2;
-  }
-
-  get width() {
-    return this.size.x;
-  }
-
-  get height() {
-    return this.size.y;
+    return this.ylow + this.height;
   }
 
   contains(rect) {
     if (rect.xlow < this.xlow) return false;
-    if (rect.xhigh > this.xhigh) return false;
+    if (rect.xhigh >= this.xhigh) return false;
     if (rect.ylow < this.ylow) return false;
-    if (rect.yhigh > this.yhigh) return false;
+    if (rect.yhigh >= this.yhigh) return false;
     return true;
   }
 
@@ -63,11 +43,53 @@ class Rectangle {
   }
 }
 
+class QuadTree {
+  constructor(rect, depth = 0) {
+    this.rect = rect;
+    this.depth = depth;
+
+    const childWidth = rect.width / 2;
+    const childHeight = rect.height / 2;
+    this.childRects = [
+      // top left
+      new Rectangle(rect.xlow, rect.ylow, childWidth, childHeight),
+      // top right
+      new Rectangle(rect.xlow + childWidth, rect.ylow, childWidth, childHeight),
+      // bottom left
+      new Rectangle(
+        rect.xlow,
+        rect.ylow + childHeight,
+        childWidth,
+        childHeight,
+      ),
+      // bottom right
+      new Rectangle(
+        rect.xlow + childWidth,
+        rect.ylow + childHeight,
+        childWidth,
+        childHeight,
+      ),
+    ];
+
+    this.children = [];
+    this.items = [];
+  }
+
+  // Recursively get number of items in this and all descendant layers
+  size() {
+    let l = this.items.length;
+    for (c of this.children) {
+      l += c.size();
+    }
+    return l;
+  }
+}
+
 // setup state
 
 const params = new URL(document.location).searchParams;
 const count = parseInt(params.get("count") ?? 400);
-const mean = parseInt(params.get("mean") ?? 24);
+const mean = parseInt(params.get("mean") ?? DIAMETER);
 const stdDev = parseInt(params.get("stdDev") ?? 6);
 
 const rectangles = [];
@@ -76,15 +98,14 @@ const seed = 1337 ^ 0xdeadbeef;
 const rand = sfc32(0x9e3779b9, 0x243f6a88, 0xb7e15162, seed);
 
 for (let i = 0; i < count; ++i) {
-  const rect = new Rectangle(
-    new Vector(
-      Math.floor(rand() * CANVAS_WIDTH),
-      Math.floor(rand() * CANVAS_HEIGHT),
-    ),
-    new Vector(normal(), normal()),
-  );
+  const cx = Math.floor(rand() * CANVAS_WIDTH);
+  const cy = Math.floor(rand() * CANVAS_HEIGHT);
+  const width = normal();
+  const height = normal();
 
-  rectangles.push(rect);
+  rectangles.push(
+    new Rectangle(cx - width / 2, cy - height / 2, width, height),
+  );
 }
 
 const start = performance.now();
@@ -115,15 +136,21 @@ function draw() {
 
   ctx.globalAlpha = 0.2;
   rectangles.forEach((rect, i) => {
-    ctx.fillStyle = "#ADD8E6";
+    ctx.fillStyle = "#ADD8E6"; // blue
     ctx.fillRect(rect.xlow, rect.ylow, rect.width, rect.height);
 
-    if (rect.width <= 24 || rect.height <= 24) {
+    if (rect.width <= DIAMETER || rect.height <= DIAMETER) {
       ctx.setLineDash([2, 2]);
-      ctx.strokeStyle = "#FFFF99";
+      ctx.strokeStyle = "#FFFF99"; // yellow
+      const cx = rect.xlow + rect.width / 2;
+      const cy = rect.ylow + rect.height / 2;
+      const width = Math.max(rect.width, DIAMETER);
+      const height = Math.max(rect.height, DIAMETER);
       const boundingRect = new Rectangle(
-        rect.center,
-        new Vector(Math.max(rect.width, 24), Math.max(rect.height, 24)),
+        cx - width / 2,
+        cy - height / 2,
+        width,
+        height,
       );
       ctx.strokeRect(
         boundingRect.xlow,
@@ -132,8 +159,12 @@ function draw() {
         boundingRect.height,
       );
     } else {
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#98FB98"; // green
+      ctx.strokeRect(rect.xlow, rect.ylow, rect.width, rect.height);
     }
   });
+  ctx.setLineDash([]);
   ctx.globalAlpha = 1;
 }
 
