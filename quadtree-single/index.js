@@ -48,85 +48,122 @@ class Rectangle {
 }
 
 class QuadTree {
-  constructor(rect, depth = 0) {
-    this.rect = rect;
+  constructor(boundary, depth = 0) {
+    this.boundary = boundary;
     this.depth = depth;
-
-    const childWidth = rect.width / 2;
-    const childHeight = rect.height / 2;
-    this.childRects = [
-      // top left
-      new Rectangle(rect.xlow, rect.ylow, childWidth, childHeight),
-      // top right
-      new Rectangle(rect.xlow + childWidth, rect.ylow, childWidth, childHeight),
-      // bottom left
-      new Rectangle(
-        rect.xlow,
-        rect.ylow + childHeight,
-        childWidth,
-        childHeight,
-      ),
-      // bottom right
-      new Rectangle(
-        rect.xlow + childWidth,
-        rect.ylow + childHeight,
-        childWidth,
-        childHeight,
-      ),
-    ];
-
+    this.items = [];
+    this.divided = false;
     this.children = [];
+  }
+
+  subdivide() {
+    const xlow = this.boundary.xlow;
+    const ylow = this.boundary.ylow;
+    const width = this.boundary.width / 2;
+    const height = this.boundary.height / 2;
+    const depth = this.depth + 1;
+
+    this.children.push(
+      new QuadTree(new Rectangle(xlow, ylow, width, height), depth),
+    );
+    this.children.push(
+      new QuadTree(new Rectangle(xlow + width, ylow, width, height), depth),
+    );
+    this.children.push(
+      new QuadTree(new Rectangle(xlow, ylow + height, width, height), depth),
+    );
+    this.children.push(
+      new QuadTree(
+        new Rectangle(xlow + width, ylow + height, width, height),
+        depth,
+      ),
+    );
+
+    this.divided = true;
+  }
+
+  insert(rectPair) {
+    // If the item's bounding rectangle doesn't overlap this quad, don't insert
+    if (!this.boundary.overlaps(rectPair.outer)) {
+      return;
+    }
+
+    // If the max depth has been reached, insert
+    if (this.depth >= maxDepth) {
+      this.items.push(rectPair);
+      return;
+    }
+
+    if (this.divided) {
+      // This is not a leaf, insert into children
+      for (let child of this.children) {
+        child.insert(rectPair);
+      }
+
+      return;
+    }
+
+    // This is a leaf and we haven't reach max depth yet
+    // If there is room, insert
+    if (this.items.length < capacity) {
+      this.items.push(rectPair);
+      return;
+    }
+
+    // Otherwise, subdivide and insert the item as well as all items from this node into the children
+    this.subdivide();
+
+    for (let child of this.children) {
+      for (let old of this.items) {
+        child.insert(old);
+      }
+      child.insert(rectPair);
+    }
+
+    // Clear items in this node as it is no longer a leaf
     this.items = [];
   }
 
-  insert(item, boundingRect) {
-    if (this.depth <= maxDepth) {
-      for (let i = 0; i < 4; ++i) {
-        if (this.childRects[i].contains(boundingRect)) {
-          if (this.children[i] === undefined) {
-            this.children[i] = new QuadTree(this.childRects[i], this.depth + 1);
-          }
-
-          this.children[i].insert(item, boundingRect);
-          return;
-        }
-      }
-    }
-
-    // If we reached the maximum depth, or if the item didn't fit into any of the children, we add it to the current quad
-    this.items.push({ boundingRect, item });
-  }
-
-  items(result = []) {
-    for (let { boundingRect: b, item: r } of this.items) {
-      result.push(r);
+  /**
+   * Returns all inner rectangles in a node and all descendant nodes
+   */
+  allItems(result = []) {
+    for (let rectPair of this.items.filter((x) => !result.includes(x.inner))) {
+      result.push(rectPair.inner);
     }
 
     for (let child of this.children) {
-      if (child !== undefined) {
-        child.items(result);
-      }
+      child.allItems(result);
     }
 
     return result;
   }
 
-  search(boundingRect, result = []) {
-    for (let { boundingRect: b, item: r } of this.items) {
-      checked.push(r);
-      if (boundingRect.overlaps(b)) {
-        result.push(r);
+  search(range, result = []) {
+    // If this nodes doesn't overlap with the range, don't search this node
+    if (!range.overlaps(this.boundary)) {
+      return result;
+    }
+
+    // If this node is fully contained in the range, just insert everything
+    if (range.contains(this.boundary)) {
+      return this.allItems(result);
+    }
+
+    // Check all items in this node, that hasn't already been checked.
+    // If this is not a leaf, there is nothing to check
+    for (let rectPair of this.items.filter(
+      (x) => !checked.includes(x.inner) && !result.includes(x.inner),
+    )) {
+      checked.push(rectPair.inner);
+      if (range.overlaps(rectPair.outer)) {
+        result.push(rectPair.inner);
       }
     }
 
-    for (let i = 0; i < 4; ++i) {
-      if (this.children[i] !== undefined) {
-        if (boundingRect.contains(this.childRects[i])) {
-          this.children[i].items(result);
-        } else if (this.childRects[i].overlaps(boundingRect)) {
-          this.children[i].search(boundingRect, result);
-        }
-      }
+    // Search all children
+    for (let child of this.children) {
+      child.search(range, result);
     }
 
     return result;
@@ -138,6 +175,7 @@ class QuadTree {
 const params = new URL(document.location).searchParams;
 const count = parseInt(params.get("count") ?? 400);
 const maxDepth = parseInt(params.get("maxDepth") ?? 8);
+const capacity = parseInt(params.get("capacity") ?? 4);
 const radius = parseInt(params.get("radius") ?? 12);
 const diameter = radius * 2;
 const mean = parseInt(params.get("mean") ?? diameter);
@@ -168,7 +206,7 @@ for (let i = 0; i < count; ++i) {
 
 const root = new QuadTree(new Rectangle(0, 0, canvasWidth, canvasHeight));
 for (let rect of rectangles) {
-  root.insert(rect, getBoundingRect(rect));
+  root.insert({ inner: rect, outer: getBoundingRect(rect) });
 }
 
 // draw
@@ -193,10 +231,10 @@ function draw() {
   ctx.strokeStyle = WHITE;
   traverse(root, (node) => {
     ctx.strokeRect(
-      node.rect.xlow,
-      node.rect.ylow,
-      node.rect.width,
-      node.rect.height,
+      node.boundary.xlow,
+      node.boundary.ylow,
+      node.boundary.width,
+      node.boundary.height,
     );
   });
 
@@ -288,12 +326,16 @@ canvas.onclick = (e) => {
     }
 
     const elapsed = performance.now() - start;
+
     document.getElementById("message").innerHTML =
-      `<p>Checked ${checked.length} <span style="color: ${RED}">rectangles</span>` +
+      `<p>Checked ${checked.length - 1} <span style="color: ${RED}">rectangles</span>` +
       ` and found ${candidates.length - 1} <span style="color: ${YELLOW}">candidate(s)</span>` +
       ` of which ${colliding.length} were true <span style="color: ${GREEN}">collisions</span>,` +
       ` in ${elapsed.toFixed(2)} ms</p>`;
     // selected rectangle is also in the overlapping list
+  } else {
+    document.getElementById("message").innerHTML =
+      "<p>Click on a rectangle to check for collision</p>";
   }
   draw();
 };
