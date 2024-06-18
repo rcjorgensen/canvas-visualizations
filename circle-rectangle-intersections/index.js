@@ -17,7 +17,7 @@ const circle = {
 let showLabels = true;
 let showIntersections = true;
 
-const canvas = document.getElementById("myCanvas");
+const canvas = document.getElementById("my-canvas");
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 

@@ -216,7 +216,7 @@ output.innerHTML +=
 
 // draw
 
-const canvas = document.getElementById("myCanvas");
+const canvas = document.getElementById("my-canvas");
 const ctx = canvas.getContext("2d");
 canvas.width = canvasWidth;
 canvas.height = canvasHeight;

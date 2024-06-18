@@ -14,7 +14,7 @@ const rectRight = rectCX + rectWidthHalf;
 const rectTop = rectCY - rectHeightHalf;
 const rectBottom = rectCY + rectHeightHalf;
 
-const canvas = document.getElementById("myCanvas");
+const canvas = document.getElementById("my-canvas");
 const ctx = canvas.getContext("2d");
 canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
