@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Target-Size-Spacing rectangles tester</title>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <form method="get" action="">
+      <textarea id="rects" name="rects" rows="15" cols="40"></textarea><br />
+      <input type="submit" value="Submit" />
+    </form>
+    <script src="rectangle.js"></script>
+    <script>
+      const params = new URL(document.location).searchParams;
+      const rectsParam =
+        params.get("rects") ??
+        JSON.stringify(
+          [
+            { x: 8, y: 8, width: 100, height: 20 },
+            { x: 8, y: 30, width: 200, height: 10 },
+          ],
+          undefined,
+          1,
+        );
+      document.getElementById("rects").value = rectsParam;
+
+      const rects = JSON.parse(rectsParam).map((rect) => new Rectangle(rect));
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = 1200;
+      canvas.height = 600;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#202020";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (const rect of rects) {
+        ctx.strokeStyle = "#FFFF99";
+        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+        ctx.beginPath();
+        ctx.arc(rect.cx, rect.cy, 12, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+    </script>
+  </body>
+</html>
